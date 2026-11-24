@@ -44,6 +44,7 @@ extension StatusItemController {
         self.store.stopSharedSpendDashboardPublication()
         self.menuCardRefreshMonitor.resetManualRefresh()
         self.screenChangeVisibilityTask?.cancel()
+        self.spaceChangeRefreshTask?.cancel()
         self.screenChangeVisibilityTask = nil
         self.animationDriver?.stop()
         self.animationDriver = nil

@@ -53,6 +53,7 @@ enum MenuBarVisibilityWatcher {
     static let startupFreshnessInterval: TimeInterval = 10
     static let startupCheckDelay: TimeInterval = 2
     static let screenChangeCheckDelay: Duration = .milliseconds(750)
+    static let spaceChangeRefreshDelay: Duration = .milliseconds(400)
     static let screenChangeFollowUpDelay: Duration = .seconds(2)
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.MenuBarSettings")!
 
@@ -280,6 +281,19 @@ extension StatusItemController {
                 return
             }
             self?.checkScreenChangeStatusItemVisibility()
+        }
+    }
+
+    @objc func handleActiveSpaceDidChange(_: Notification) {
+        guard !SettingsStore.isRunningTests else { return }
+        self.spaceChangeRefreshTask?.cancel()
+        self.spaceChangeRefreshTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: MenuBarVisibilityWatcher.spaceChangeRefreshDelay)
+            } catch {
+                return
+            }
+            self?.refreshStatusItemContentAfterSpaceChange()
         }
     }
 

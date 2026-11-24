@@ -323,6 +323,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var iconPerfRefreshCycleMetrics: IconPerfRefreshCycleMetrics?
     var iconPerfUpdatePassActive = false
     var screenChangeVisibilityTask: Task<Void, Never>?
+    var spaceChangeRefreshTask: Task<Void, Never>?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
     struct BlinkState {
@@ -467,6 +468,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self,
             selector: #selector(self.handleScreenParametersDidChange(_:)),
             name: NSApplication.didChangeScreenParametersNotification,
+            object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(self.handleActiveSpaceDidChange(_:)),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
@@ -940,6 +946,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.loginTask?.cancel()
         self.overviewSharePresentation.task?.cancel()
         self.screenChangeVisibilityTask?.cancel()
+        self.spaceChangeRefreshTask?.cancel()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
@@ -1025,6 +1032,21 @@ extension StatusItemController {
         let visibleProviders = self.settings.orderedFirstPartyProviders().filter { self.isVisible($0) }
         guard let providerOffset = visibleProviders.firstIndex(of: provider) else { return nil }
         return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset
+    }
+
+    /// Mission Control / Space switches can leave status items with a collapsed width or a dropped image while the
+    /// render-signature cache still believes the content is applied, which shows up as blank menu bar gaps.
+    func refreshStatusItemContentAfterSpaceChange() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        guard !self.hasPreparedForAppShutdown else { return }
+        for item in [self.statusItem] + Array(self.statusItems.values) where item.isVisible && item.length == 0 {
+            item.length = NSStatusItem.variableLength
+        }
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.updateIcons()
     }
 
     func refreshExistingStatusItemsForVisibilityRecovery() {
